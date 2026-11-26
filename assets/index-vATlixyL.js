@@ -1,1 +1,74 @@
-(function(){let e=document.createElement(`link`).relList;if(e&&e.supports&&e.supports(`modulepreload`))return;for(let e of document.querySelectorAll(`link[rel="modulepreload"]`))n(e);new MutationObserver(e=>{for(let t of e)if(t.type===`childList`)for(let e of t.addedNodes)e.tagName===`LINK`&&e.rel===`modulepreload`&&n(e)}).observe(document,{childList:!0,subtree:!0});function t(e){let t={};return e.integrity&&(t.integrity=e.integrity),e.referrerPolicy&&(t.referrerPolicy=e.referrerPolicy),t.credentials=e.crossOrigin===`use-credentials`?`include`:e.crossOrigin===`anonymous`?`omit`:`same-origin`,t}function n(e){if(e.ep)return;e.ep=!0;let n=t(e);fetch(e.href,n)}})();var e=document.querySelector(`.burger`),t=document.getElementById(`nav`);function n(n){e&&t&&(e.setAttribute(`aria-expanded`,String(n)),e.setAttribute(`aria-label`,n?`Закрыть меню`:`Открыть меню`),t.classList.toggle(`is-open`,n))}e?.addEventListener(`click`,()=>n(e.getAttribute(`aria-expanded`)!==`true`)),t?.addEventListener(`click`,e=>{e.target.closest(`a`)&&n(!1)}),document.addEventListener(`keydown`,e=>{e.key===`Escape`&&n(!1)});var r=document.getElementById(`lead-form`),i=document.getElementById(`form-status`);function a(e,t,n){let r=document.getElementById(e);return r&&(r.textContent=n),t.setAttribute(`aria-invalid`,n?`true`:`false`),!n}r?.addEventListener(`submit`,async e=>{if(e.preventDefault(),!i)return;let t=r.elements.namedItem(`name`),n=r.elements.namedItem(`contact`),o=r.elements.namedItem(`consent`),s=a(`e-name`,t,t.value.trim()?``:`Укажите имя`),c=a(`e-contact`,n,n.value.trim().length>=5?``:`Укажите телефон или Telegram`),l=a(`e-consent`,o,o.checked?``:`Нужно согласие на обработку данных`);s&&c&&l?i.textContent=`Форма пока не подключена к приёму заявок (демо-режим). Данные не отправлены.`:r.querySelector(`[aria-invalid="true"]`)?.focus()});
+// Меню (бургер)
+const burger = document.querySelector('.burger');
+const nav = document.getElementById('nav');
+function setNav(open) {
+  if (!burger || !nav) return;
+  burger.setAttribute('aria-expanded', String(open));
+  burger.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
+  nav.classList.toggle('is-open', open);
+}
+if (burger && nav) {
+  burger.addEventListener('click', () => setNav(burger.getAttribute('aria-expanded') !== 'true'));
+  nav.addEventListener('click', (e) => { if (e.target.closest('a')) setNav(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setNav(false); });
+}
+
+// Отправка заявки напрямую в Telegram (без сервера).
+// Токен и chat_id подставляются при деплое.
+const TG_TOKEN = '9285275662:AAHiDPdCB8lH-FY2Vgw_e2ZCfJvAWlM0PZg';
+const TG_CHAT = '-1004306924783';
+const TG_THREAD = '23';
+
+const form = document.getElementById('lead-form');
+const status = document.getElementById('form-status');
+
+function setErr(id, input, message) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = message;
+  if (input) input.setAttribute('aria-invalid', message ? 'true' : 'false');
+  return !message;
+}
+
+if (form) {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!status) return;
+    const name = form.elements.namedItem('name');
+    const contact = form.elements.namedItem('contact');
+    const consent = form.elements.namedItem('consent');
+    const way = form.elements.namedItem('way');
+    const message = form.elements.namedItem('message');
+
+    const okName = setErr('e-name', name, name.value.trim() ? '' : 'Укажите имя');
+    const okContact = setErr('e-contact', contact, contact.value.trim().length >= 5 ? '' : 'Укажите телефон или Telegram');
+    const okConsent = setErr('e-consent', consent, consent.checked ? '' : 'Нужно согласие на обработку данных');
+    if (!(okName && okContact && okConsent)) {
+      form.querySelector('[aria-invalid="true"]')?.focus();
+      return;
+    }
+
+    const wayText = way && way.value ? way.value : '—';
+    let text = '🆕 Новая заявка с сайта\n\n👤 Имя: ' + name.value.trim() + '\n📞 Контакт: ' + contact.value.trim() + '\n🎯 Интересует: ' + wayText;
+    if (message && message.value.trim()) text += '\n💬 Комментарий: ' + message.value.trim();
+    if (text.length > 3500) text = text.slice(0, 3500) + '…';
+
+    const btn = form.querySelector('button[type="submit"]');
+    const original = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Отправляем…'; }
+    status.textContent = '';
+
+    try {
+      await fetch('https://api.telegram.org/bot' + TG_TOKEN + '/sendMessage', {
+        method: 'POST',
+        mode: 'no-cors',
+        body: new URLSearchParams({ chat_id: TG_CHAT, message_thread_id: TG_THREAD, text: text }),
+      });
+      status.textContent = 'Спасибо! Заявка отправлена — мы свяжемся с вами.';
+      form.reset();
+    } catch (err) {
+      status.textContent = 'Не удалось отправить заявку. Попробуйте ещё раз.';
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = original; }
+    }
+  });
+}
